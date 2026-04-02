@@ -1,6 +1,7 @@
 import { generateQuestion, pickMode, calcScore, getDiffConfig, getTermCount, MODE } from './engine.js';
 import { loadJSON, saveJSON, uid } from './utils.js';
 import { renderHome, renderGame, renderFeedback, renderResult, renderLeaderboard } from './screens.js';
+import { renderTimer } from './components.js';
 
 const TOTAL_ROUNDS = 10;
 const LB_KEY = 'dini_terim_lb_v1';
@@ -178,6 +179,13 @@ function nextRound() {
   }
 }
 
+function updateTimerOnly() {
+  const timerEl = document.getElementById('timer');
+  if (timerEl && state.currentQuestion) {
+    renderTimer(timerEl, state.timeRemaining, state.currentQuestion.timeLimit);
+  }
+}
+
 function startTimer(seconds) {
   stopTimer();
   state.timeRemaining = seconds;
@@ -186,7 +194,7 @@ function startTimer(seconds) {
     if (state.timeRemaining <= 0) {
       dispatch({ type: 'TIMEOUT' });
     } else {
-      render();
+      updateTimerOnly();
     }
   }, 1000);
 }
