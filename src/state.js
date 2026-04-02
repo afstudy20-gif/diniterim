@@ -1,7 +1,7 @@
 import { generateQuestion, pickMode, calcScore, MODE } from './engine.js';
 import { loadJSON, saveJSON, uid, normalizeTR } from './utils.js';
 import { renderHome, renderGame, renderFeedback, renderResult, renderLeaderboard } from './screens.js';
-import { renderTimer, renderLetterTiles, renderAnswerArea } from './components.js';
+import { renderTimer, updateTimer, renderLetterTiles, renderAnswerArea } from './components.js';
 
 const TOTAL_ROUNDS = 10;
 const LB_KEY = 'dini_terim_lb_v1';
@@ -27,7 +27,7 @@ let timerInterval = null;
 function updateTimerDOM() {
   const el = document.getElementById('timer');
   if (el && state.currentQuestion) {
-    renderTimer(el, state.timeRemaining, state.currentQuestion.timeLimit);
+    updateTimer(el, state.timeRemaining, state.currentQuestion.timeLimit);
   }
 }
 

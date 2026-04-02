@@ -1,13 +1,28 @@
 import { formatTime } from './utils.js';
 
-// Render timer bar + text
+// Render timer bar + text (first time only - creates DOM)
 export function renderTimer(container, timeRemaining, timeLimit) {
-  const pct = timeLimit > 0 ? (timeRemaining / timeLimit) * 100 : 100;
-  const cls = pct <= 25 ? 'danger' : pct <= 50 ? 'warn' : '';
+  // If children already exist, just update values
+  const existing = container.querySelector('.timer-bar');
+  if (existing) {
+    updateTimer(container, timeRemaining, timeLimit);
+    return;
+  }
   container.innerHTML = `
     <div class="timer-text">${formatTime(timeRemaining)}</div>
-    <div class="timer-wrap"><div class="timer-bar ${cls}" style="width:${pct}%"></div></div>
+    <div class="timer-wrap"><div class="timer-bar" style="width:100%"></div></div>
   `;
+}
+
+// Update timer without rebuilding DOM
+export function updateTimer(container, timeRemaining, timeLimit) {
+  const textEl = container.querySelector('.timer-text');
+  const barEl = container.querySelector('.timer-bar');
+  if (!textEl || !barEl) return;
+  const pct = timeLimit > 0 ? (timeRemaining / timeLimit) * 100 : 100;
+  textEl.textContent = formatTime(timeRemaining);
+  barEl.style.width = pct + '%';
+  barEl.className = 'timer-bar' + (pct <= 25 ? ' danger' : pct <= 50 ? ' warn' : '');
 }
 
 // Render top bar (round, score, streak)
@@ -39,14 +54,13 @@ export function renderModeBadge(type) {
   return `<span class="mode-badge ${m.cls}">${m.text}</span>`;
 }
 
-// Render multiple choice options
+// Render multiple choice options (no fade-in animation)
 export function renderOptions(container, options, onSelect) {
   container.innerHTML = '';
   container.className = 'options';
   options.forEach((opt, i) => {
     const btn = document.createElement('div');
-    btn.className = 'option fade-in';
-    btn.style.animationDelay = `${i * 0.05}s`;
+    btn.className = 'option';
     btn.textContent = opt.text;
     btn.addEventListener('click', () => onSelect(i, btn));
     container.appendChild(btn);
@@ -63,8 +77,18 @@ export function revealOptions(container, selectedIdx, options) {
   });
 }
 
-// Render letter tiles
+// Render letter tiles - uses keyed update to avoid full rebuild
 export function renderLetterTiles(container, letters, usedIndices, onTileClick) {
+  const existing = container.querySelectorAll('.tile');
+  // If tile count matches, just toggle classes
+  if (existing.length === letters.length) {
+    existing.forEach((tile, i) => {
+      const isUsed = usedIndices.includes(i);
+      tile.className = 'tile' + (isUsed ? ' used' : '');
+    });
+    return;
+  }
+  // First render - create all tiles
   container.innerHTML = '';
   container.className = 'tiles-area';
   letters.forEach((letter, i) => {
@@ -80,6 +104,7 @@ export function renderLetterTiles(container, letters, usedIndices, onTileClick) 
 
 // Render answer area for letter pool
 export function renderAnswerArea(container, selectedLetters, onRemove) {
+  // Always rebuild answer area since letters change order
   container.innerHTML = '';
   container.className = 'answer-area' + (selectedLetters.length > 0 ? ' has-content' : '');
   selectedLetters.forEach((letter, i) => {
