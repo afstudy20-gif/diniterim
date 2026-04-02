@@ -26,9 +26,7 @@ let timerInterval = null;
 
 function updateTimerDOM() {
   const el = document.getElementById('timer');
-  if (el && state.currentQuestion) {
-    updateTimer(el, state.timeRemaining, state.currentQuestion.timeLimit);
-  }
+  if (el) updateTimer(el, state.timeRemaining);
 }
 
 function updateTilesDOM() {

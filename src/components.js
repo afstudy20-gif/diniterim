@@ -1,28 +1,17 @@
 import { formatTime } from './utils.js';
 
-// Render timer bar + text (first time only - creates DOM)
+// Render timer bar + text. Bar uses pure CSS animation - JS only updates the text.
 export function renderTimer(container, timeRemaining, timeLimit) {
-  // If children already exist, just update values
-  const existing = container.querySelector('.timer-bar');
-  if (existing) {
-    updateTimer(container, timeRemaining, timeLimit);
-    return;
-  }
   container.innerHTML = `
     <div class="timer-text">${formatTime(timeRemaining)}</div>
-    <div class="timer-wrap"><div class="timer-bar" style="width:100%"></div></div>
+    <div class="timer-wrap"><div class="timer-bar" style="--timer-duration:${timeLimit}s"></div></div>
   `;
 }
 
-// Update timer without rebuilding DOM
-export function updateTimer(container, timeRemaining, timeLimit) {
+// Update only the timer text - bar animates via CSS, zero DOM cost
+export function updateTimer(container, timeRemaining) {
   const textEl = container.querySelector('.timer-text');
-  const barEl = container.querySelector('.timer-bar');
-  if (!textEl || !barEl) return;
-  const pct = timeLimit > 0 ? (timeRemaining / timeLimit) * 100 : 100;
-  textEl.textContent = formatTime(timeRemaining);
-  barEl.style.width = pct + '%';
-  barEl.className = 'timer-bar' + (pct <= 25 ? ' danger' : pct <= 50 ? ' warn' : '');
+  if (textEl) textEl.textContent = formatTime(timeRemaining);
 }
 
 // Render top bar (round, score, streak)
