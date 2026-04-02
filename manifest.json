@@ -1,0 +1,10 @@
+{
+  "name": "Dini Terimler Quiz",
+  "short_name": "DiniTerim",
+  "description": "MEB Dini Terimler Sozlugu kaynakli interaktif quiz oyunu",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f4ef",
+  "theme_color": "#1b6b3a",
+  "icons": []
+}
