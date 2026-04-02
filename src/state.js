@@ -1,61 +1,87 @@
-import { generateQuestion, pickMode, calcScore, getDiffConfig, getTermCount, MODE } from './engine.js';
-import { loadJSON, saveJSON, uid } from './utils.js';
+import { generateQuestion, pickMode, calcScore, MODE } from './engine.js';
+import { loadJSON, saveJSON, uid, normalizeTR } from './utils.js';
 import { renderHome, renderGame, renderFeedback, renderResult, renderLeaderboard } from './screens.js';
-import { renderTimer } from './components.js';
+import { renderTimer, renderLetterTiles, renderAnswerArea } from './components.js';
 
 const TOTAL_ROUNDS = 10;
 const LB_KEY = 'dini_terim_lb_v1';
 const NICK_KEY = 'dini_terim_nick_v1';
 
-// --- State ---
 const state = {
   screen: 'home',
   difficulty: 'medium',
   mode: MODE.KARMA,
   playerName: loadJSON(NICK_KEY, ''),
-  round: 0,
-  score: 0,
-  streak: 0,
-  maxStreak: 0,
-  usedIds: [],
-  currentQuestion: null,
-  currentMode: null,
-  answers: [],
-  timeRemaining: 0,
-  answered: false,
-  selectedIdx: null,
+  round: 0, score: 0, streak: 0, maxStreak: 0,
+  usedIds: [], currentQuestion: null, answers: [],
+  timeRemaining: 0, answered: false, selectedIdx: null,
   letterState: { usedIndices: [], selected: [] },
   leaderboard: loadJSON(LB_KEY, []),
+  lastPoints: 0, lastCorrect: false,
 };
 
 let timerInterval = null;
 
-// --- Dispatch ---
+// ---- Targeted DOM updates (no full re-render) ----
+
+function updateTimerDOM() {
+  const el = document.getElementById('timer');
+  if (el && state.currentQuestion) {
+    renderTimer(el, state.timeRemaining, state.currentQuestion.timeLimit);
+  }
+}
+
+function updateTilesDOM() {
+  const q = state.currentQuestion;
+  if (!q || q.type !== 'letter_pool') return;
+  const tilesArea = document.getElementById('tilesArea');
+  const answerArea = document.getElementById('answerArea');
+  if (!tilesArea || !answerArea) return;
+  renderLetterTiles(tilesArea, q.letters, state.letterState.usedIndices, idx => {
+    dispatch({ type: 'TILE_CLICK', index: idx });
+  });
+  renderAnswerArea(answerArea, state.letterState.selected, pos => {
+    dispatch({ type: 'TILE_REMOVE', position: pos });
+  });
+}
+
+function revealOptionsDOM(selectedIdx, options) {
+  const items = document.querySelectorAll('.option');
+  items.forEach((el, i) => {
+    el.style.pointerEvents = 'none';
+    if (options[i].correct) {
+      el.classList.add('correct');
+    }
+    if (i === selectedIdx && !options[i].correct) {
+      el.classList.add('wrong');
+    }
+  });
+}
+
+// ---- Dispatch ----
+
 export function dispatch(action) {
   switch (action.type) {
+
+    // Home - no re-render needed, DOM handled directly by event listeners
     case 'SET_DIFFICULTY':
       state.difficulty = action.value;
-      break;
-
+      return;
     case 'SET_MODE':
       state.mode = action.value;
-      break;
-
+      return;
     case 'SET_NAME':
       state.playerName = action.value;
       saveJSON(NICK_KEY, action.value);
-      break;
+      return;
 
     case 'START_GAME':
       state.screen = 'game';
-      state.round = 0;
-      state.score = 0;
-      state.streak = 0;
-      state.maxStreak = 0;
-      state.usedIds = [];
-      state.answers = [];
+      state.round = 0; state.score = 0; state.streak = 0; state.maxStreak = 0;
+      state.usedIds = []; state.answers = [];
       nextRound();
-      break;
+      render();
+      return;
 
     case 'SELECT_OPTION': {
       if (state.answered) return;
@@ -69,9 +95,10 @@ export function dispatch(action) {
       else { state.streak = 0; }
       state.answers.push({ termId: q.termId, correct, timeUsed: q.timeLimit - state.timeRemaining, scoreEarned: pts, mode: q.type });
       stopTimer();
-      render(); // re-render to show correct/wrong
-      setTimeout(() => { state.screen = 'feedback'; state.lastPoints = pts; state.lastCorrect = correct; render(); }, 800);
-      break;
+      revealOptionsDOM(action.index, q.options);
+      state.lastPoints = pts; state.lastCorrect = correct;
+      setTimeout(() => { state.screen = 'feedback'; render(); }, 900);
+      return;
     }
 
     case 'SUBMIT_LETTERS': {
@@ -79,30 +106,30 @@ export function dispatch(action) {
       state.answered = true;
       const q = state.currentQuestion;
       const userWord = state.letterState.selected.join('');
-      const correct = userWord.toLowerCase() === q.normalizedAnswer;
+      const correct = normalizeTR(userWord) === q.normalizedAnswer;
       const pts = calcScore(correct, state.timeRemaining, q.timeLimit, q.multiplier);
       state.score += pts;
       if (correct) { state.streak++; state.maxStreak = Math.max(state.maxStreak, state.streak); }
       else { state.streak = 0; }
       state.answers.push({ termId: q.termId, correct, timeUsed: q.timeLimit - state.timeRemaining, scoreEarned: pts, mode: q.type });
       stopTimer();
+      state.lastPoints = pts; state.lastCorrect = correct;
       state.screen = 'feedback';
-      state.lastPoints = pts;
-      state.lastCorrect = correct;
-      break;
+      render();
+      return;
     }
 
     case 'TIMEOUT': {
       if (state.answered) return;
       state.answered = true;
       stopTimer();
-      const q = state.currentQuestion;
       state.streak = 0;
+      const q = state.currentQuestion;
       state.answers.push({ termId: q.termId, correct: false, timeUsed: q.timeLimit, scoreEarned: 0, mode: q.type });
+      state.lastPoints = 0; state.lastCorrect = false;
       state.screen = 'feedback';
-      state.lastPoints = 0;
-      state.lastCorrect = false;
-      break;
+      render();
+      return;
     }
 
     case 'NEXT_ROUND':
@@ -113,56 +140,56 @@ export function dispatch(action) {
         state.screen = 'game';
         nextRound();
       }
-      break;
+      render();
+      return;
 
     case 'GO_HOME':
       stopTimer();
       state.screen = 'home';
-      break;
+      render();
+      return;
 
     case 'SHOW_LEADERBOARD':
       state.screen = 'leaderboard';
-      break;
+      render();
+      return;
 
     case 'CLEAR_LEADERBOARD':
       state.leaderboard = [];
       saveJSON(LB_KEY, []);
-      break;
+      render();
+      return;
 
+    // Tile interactions - partial DOM update only
     case 'TILE_CLICK': {
       const idx = action.index;
       if (!state.letterState.usedIndices.includes(idx)) {
         state.letterState.usedIndices.push(idx);
         state.letterState.selected.push(state.currentQuestion.letters[idx]);
       }
-      break;
+      updateTilesDOM();
+      return;
     }
 
     case 'TILE_REMOVE': {
       const pos = action.position;
       const letter = state.letterState.selected[pos];
       state.letterState.selected.splice(pos, 1);
-      // find matching used index and remove it
-      const origIdx = state.letterState.usedIndices.find(i =>
-        state.currentQuestion.letters[i] === letter &&
-        !state.letterState.selected.includes(state.currentQuestion.letters[i]) ||
-        state.letterState.usedIndices.indexOf(i) >= 0
-      );
-      // simpler: remove last matching
       for (let i = state.letterState.usedIndices.length - 1; i >= 0; i--) {
         if (state.currentQuestion.letters[state.letterState.usedIndices[i]] === letter) {
           state.letterState.usedIndices.splice(i, 1);
           break;
         }
       }
-      break;
+      updateTilesDOM();
+      return;
     }
 
     case 'CLEAR_LETTERS':
       state.letterState = { usedIndices: [], selected: [] };
-      break;
+      updateTilesDOM();
+      return;
   }
-  render();
 }
 
 function nextRound() {
@@ -171,18 +198,10 @@ function nextRound() {
   state.selectedIdx = null;
   state.letterState = { usedIndices: [], selected: [] };
   const subMode = pickMode(state.mode);
-  state.currentMode = subMode;
   state.currentQuestion = generateQuestion(state.difficulty, subMode, state.usedIds);
   if (state.currentQuestion) {
     state.usedIds.push(state.currentQuestion.termId);
     startTimer(state.currentQuestion.timeLimit);
-  }
-}
-
-function updateTimerOnly() {
-  const timerEl = document.getElementById('timer');
-  if (timerEl && state.currentQuestion) {
-    renderTimer(timerEl, state.timeRemaining, state.currentQuestion.timeLimit);
   }
 }
 
@@ -194,7 +213,7 @@ function startTimer(seconds) {
     if (state.timeRemaining <= 0) {
       dispatch({ type: 'TIMEOUT' });
     } else {
-      updateTimerOnly();
+      updateTimerDOM();
     }
   }, 1000);
 }
@@ -206,22 +225,16 @@ function stopTimer() {
 function saveScore() {
   if (!state.playerName.trim()) return;
   const correct = state.answers.filter(a => a.correct).length;
-  const entry = {
-    id: uid(),
-    playerName: state.playerName,
-    difficulty: state.difficulty,
-    mode: state.mode,
-    totalScore: state.score,
-    correctRounds: correct,
+  state.leaderboard.push({
+    id: uid(), playerName: state.playerName, difficulty: state.difficulty,
+    mode: state.mode, totalScore: state.score, correctRounds: correct,
     playedAt: new Date().toLocaleDateString('tr-TR'),
-  };
-  state.leaderboard.push(entry);
+  });
   state.leaderboard.sort((a, b) => b.totalScore - a.totalScore);
   state.leaderboard = state.leaderboard.slice(0, 50);
   saveJSON(LB_KEY, state.leaderboard);
 }
 
-// --- Render ---
 const app = document.getElementById('app');
 
 function render() {
@@ -234,5 +247,4 @@ function render() {
   }
 }
 
-// Initial render
 render();

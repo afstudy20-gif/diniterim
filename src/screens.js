@@ -28,7 +28,7 @@ export function renderHome(app, state, dispatch) {
         <div class="chip ${state.difficulty === 'medium' ? 'active' : ''}" data-val="medium">Orta</div>
         <div class="chip ${state.difficulty === 'hard' ? 'active' : ''}" data-val="hard">Zor</div>
       </div>
-      <p class="text-sm text-muted">${termCount} terim havuzu</p>
+      <p class="text-sm text-muted" id="termCount">${termCount} terim havuzu</p>
     </div>
 
     <div class="card fade-in">
@@ -49,17 +49,27 @@ export function renderHome(app, state, dispatch) {
 
   // Event listeners
   app.querySelector('#nameInput').addEventListener('input', e => dispatch({ type: 'SET_NAME', value: e.target.value }));
+
+  // Chip selectors - update DOM directly, no full re-render
   app.querySelector('#diffBtns').addEventListener('click', e => {
     const val = e.target.dataset.val;
-    if (val) dispatch({ type: 'SET_DIFFICULTY', value: val });
+    if (!val) return;
+    state.difficulty = val;
+    app.querySelectorAll('#diffBtns .chip').forEach(c => c.classList.toggle('active', c.dataset.val === val));
+    const countEl = app.querySelector('#termCount');
+    if (countEl) countEl.textContent = `${getTermCount(val)} terim havuzu`;
   });
   app.querySelector('#modeBtns').addEventListener('click', e => {
     const val = e.target.dataset.val;
-    if (val) dispatch({ type: 'SET_MODE', value: val });
+    if (!val) return;
+    state.mode = val;
+    app.querySelectorAll('#modeBtns .chip').forEach(c => c.classList.toggle('active', c.dataset.val === val));
   });
+
   app.querySelector('#startBtn').addEventListener('click', () => dispatch({ type: 'START_GAME' }));
   app.querySelector('#lbBtn').addEventListener('click', () => dispatch({ type: 'SHOW_LEADERBOARD' }));
 }
+
 
 // ==================== GAME ====================
 export function renderGame(app, state, dispatch) {
@@ -105,7 +115,7 @@ export function renderGame(app, state, dispatch) {
     `;
   }
 
-  app.innerHTML = `<div class="fade-in">${content}</div>`;
+  app.innerHTML = content;
 
   // Render dynamic parts
   const topbarEl = app.querySelector('#topbar');
